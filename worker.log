@@ -1,0 +1,116 @@
+2024-12-08 20:52:44,391 - INFO - Local SQLite database setup completed.
+2024-12-08 20:53:05,623 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 20:53:08,913 - INFO - User recognized: Lakshya
+2024-12-08 20:53:32,839 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 20:59:34,647 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 20:59:36,538 - INFO - User recognized: Lakshya
+2024-12-08 21:01:23,867 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:01:34,847 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:01:42,382 - INFO - User recognized: Lakshya
+2024-12-08 21:01:42,383 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:16:11,235 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:16:19,294 - INFO - Local SQLite database setup completed.
+2024-12-08 21:18:35,046 - INFO - Local SQLite database setup completed.
+2024-12-08 21:18:50,620 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:18:52,383 - INFO - User recognized: Lakshya
+2024-12-08 21:23:04,954 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:23:13,553 - INFO - Local SQLite database setup completed.
+2024-12-08 21:23:20,094 - INFO - Deleted member Lakshya from local DB.
+2024-12-08 21:23:37,158 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:23:46,602 - INFO - Stable unknown user detected.
+2024-12-08 21:23:56,790 - INFO - Started capturing face data for new user: Lakshya
+2024-12-08 21:23:56,805 - INFO - Inserted member Lakshya into local DB.
+2024-12-08 21:24:13,119 - INFO - Registering new user: Lakshya
+2024-12-08 21:24:13,390 - ERROR - Failed to register user Lakshya.
+2024-12-08 21:24:14,531 - INFO - User recognized: Lakshya
+2024-12-08 21:24:14,532 - INFO - Local SQLite database setup completed.
+2024-12-08 21:24:14,540 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:27:11,169 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:27:21,962 - INFO - Connected to MongoDB.
+2024-12-08 21:27:22,070 - INFO - Local SQLite database setup completed.
+2024-12-08 21:27:32,031 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:27:32,885 - ERROR - Failed to capture frame from camera.
+2024-12-08 21:27:40,321 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:27:41,748 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:27:42,422 - ERROR - Failed to capture frame from camera.
+2024-12-08 21:27:46,527 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:27:50,919 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:27:51,659 - ERROR - Failed to capture frame from camera.
+2024-12-08 21:27:54,559 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:28:31,591 - INFO - Connected to MongoDB.
+2024-12-08 21:28:31,707 - INFO - Local SQLite database setup completed.
+2024-12-08 21:28:34,927 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:28:38,205 - INFO - User recognized: Lakshya
+2024-12-08 21:28:38,206 - INFO - Local SQLite database setup completed.
+2024-12-08 21:28:38,206 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:29:01,015 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:29:10,305 - INFO - Connected to MongoDB.
+2024-12-08 21:29:10,417 - INFO - Local SQLite database setup completed.
+2024-12-08 21:29:13,024 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:29:14,769 - INFO - User recognized: Lakshya
+2024-12-08 21:29:14,770 - INFO - Local SQLite database setup completed.
+2024-12-08 21:29:14,771 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:29:44,479 - INFO - Person exited the frame. Updating database.
+2024-12-08 21:29:44,484 - INFO - Inserted exercise data for user 2263ebcf-4f9c-4c76-a128-9e10022fb325 into local DB.
+2024-12-08 21:29:44,484 - INFO - Exercise data saved locally.
+2024-12-08 21:29:46,532 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:36:02,307 - INFO - Local SQLite database setup completed.
+2024-12-08 21:36:06,962 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:36:12,311 - INFO - User recognized: Lakshya
+2024-12-08 21:36:12,312 - INFO - Local SQLite database setup completed.
+2024-12-08 21:36:12,312 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:36:43,735 - INFO - Person exited the frame. Updating database.
+2024-12-08 21:36:43,741 - INFO - Inserted exercise data for user 2263ebcf-4f9c-4c76-a128-9e10022fb325 into local DB.
+2024-12-08 21:36:43,741 - INFO - Exercise data saved locally.
+2024-12-08 21:36:46,976 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:40:21,035 - INFO - Closed thread-local SQLite connection.
+2024-12-08 21:40:30,279 - INFO - Local SQLite database setup completed.
+2024-12-08 21:40:34,615 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:40:36,314 - INFO - User recognized: Lakshya
+2024-12-08 21:40:36,316 - INFO - Local SQLite database setup completed.
+2024-12-08 21:40:36,316 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:41:03,704 - INFO - Person exited the frame. Updating database.
+2024-12-08 21:41:03,712 - INFO - Inserted exercise data for user 2263ebcf-4f9c-4c76-a128-9e10022fb325 into local DB.
+2024-12-08 21:41:03,713 - INFO - Exercise data saved locally.
+2024-12-08 21:41:04,603 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:43:00,584 - INFO - Closed thread-local SQLite connection.
+2024-12-08 21:43:09,449 - INFO - Local SQLite database setup completed.
+2024-12-08 21:43:13,428 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 21:43:15,182 - INFO - User recognized: Lakshya
+2024-12-08 21:43:15,183 - INFO - Local SQLite database setup completed.
+2024-12-08 21:43:15,184 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 21:43:30,671 - INFO - Person exited the frame. Updating database.
+2024-12-08 21:43:30,677 - INFO - Inserted exercise data for user 2263ebcf-4f9c-4c76-a128-9e10022fb325 into local DB.
+2024-12-08 21:43:30,677 - INFO - Exercise data saved locally.
+2024-12-08 21:43:32,657 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 21:53:20,637 - INFO - Closed thread-local SQLite connection.
+2024-12-08 21:53:41,186 - INFO - Local SQLite database setup completed.
+2024-12-08 21:55:27,037 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:08:40,567 - INFO - Local SQLite database setup completed.
+2024-12-08 22:09:00,328 - ERROR - Could not open camera 2.
+2024-12-08 22:09:14,440 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 22:09:15,697 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 22:09:17,447 - INFO - User recognized: Lakshya
+2024-12-08 22:09:17,448 - INFO - Local SQLite database setup completed.
+2024-12-08 22:09:17,449 - INFO - Starting exercise analysis for user: Lakshya
+2024-12-08 22:09:51,203 - INFO - Person exited the frame. Updating database.
+2024-12-08 22:09:51,210 - INFO - Inserted exercise data for user 2263ebcf-4f9c-4c76-a128-9e10022fb325 into local DB.
+2024-12-08 22:09:51,210 - INFO - Exercise data saved locally.
+2024-12-08 22:09:54,144 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 22:10:16,494 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:13:52,390 - INFO - Local SQLite database setup completed.
+2024-12-08 22:23:08,707 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:23:14,590 - INFO - Local SQLite database setup completed.
+2024-12-08 22:30:12,993 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:30:23,001 - INFO - Local SQLite database setup completed.
+2024-12-08 22:32:09,942 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:32:16,675 - INFO - Local SQLite database setup completed.
+2024-12-08 22:37:20,767 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:37:27,307 - INFO - Local SQLite database setup completed.
+2024-12-08 22:37:34,163 - INFO - Closed thread-local SQLite connection.
+2024-12-08 22:37:57,734 - INFO - Local SQLite database setup completed.
+2024-12-08 22:38:27,088 - INFO - Camera 2 initialized with resolution 1280x720.
+2024-12-08 22:38:27,131 - INFO - Camera 0 initialized with resolution 1280x720.
+2024-12-08 22:38:39,008 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 22:38:41,543 - INFO - Stop requested for ExerciseWorker.
+2024-12-08 22:42:20,761 - INFO - Closed thread-local SQLite connection.
