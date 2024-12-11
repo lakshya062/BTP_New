@@ -15,6 +15,14 @@ from .config import exercise_config
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
+ARUCO_DICT = {
+    "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+    "DICT_5X5_100": cv2.aruco.DICT_5X5_100,
+}
+
+arucoDict = cv2.aruco.Dictionary_get(ARUCO_DICT["DICT_5X5_100"])
+arucoParams = cv2.aruco.DetectorParameters_create()
+
 class ExerciseAnalyzer:
     def __init__(self, exercise, aruco_detector, database_handler, user_id=None):
         """
@@ -105,18 +113,14 @@ class ExerciseAnalyzer:
                 print(f"Error calculating angle for {angle_name}: {e}")
                 angle = 0
 
-            # Detect weight via Aruco
-            try:
-                corners, ids, rejected = self.aruco_detector.detect_markers(frame)
-                if ids is not None and len(ids) > 0:
-                    try:
-                        self.current_weight = int(ids[0][0])
-                    except (IndexError, ValueError):
-                        self.current_weight = 0
-                else:
+            corners, ids, rejected = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
+            if ids is not None:
+                try:
+                    self.current_weight = int(ids[0][0])
+                except (IndexError, ValueError):
                     self.current_weight = 0
-            except Exception as e:
-                print(f"Error detecting Aruco markers: {e}")
+                    print("We are not at correct place")
+            else:
                 self.current_weight = 0
 
             # Stability detection with improved logic to prevent double counting
@@ -133,7 +137,7 @@ class ExerciseAnalyzer:
                     self.stable_frames = max(0, self.stable_frames - 1)
                 continue
 
-            # Rep counting logic with state machine:
+            # Rep counting logic with state machine
             down_min, down_max = exercise_config[self.exercise]['down_range']
             up_min, up_max = exercise_config[self.exercise]['up_range']
 
@@ -205,9 +209,12 @@ class ExerciseAnalyzer:
             self.reset_counters()
 
             # Insert into the database
-            self.database_handler.insert_exercise_data_local(record)
+            insert_success = self.database_handler.insert_exercise_data_local(record)
 
-            return record
+            if insert_success:
+                return record
+            else:
+                return None
 
         except Exception as e:
             print(f"Error updating exercise data: {e}")

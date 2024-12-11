@@ -9,6 +9,9 @@ from ui.user_exercise_data_page import UserExerciseDataPage
 
 
 class MemberListPage(QWidget):
+    # Signal to refresh members list externally if needed
+    refresh_members_signal = Signal()
+
     def __init__(self, db_handler, face_recognizer):
         super().__init__()
         self.db_handler = db_handler
@@ -64,66 +67,78 @@ class MemberListPage(QWidget):
 
     def load_members(self):
         """Load members from the database and populate the table."""
-        members = self.db_handler.get_all_members()  # Ensure this calls the local method
-        self.table.setRowCount(0)
-        for m in members:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(m.get("username","N/A")))
-            self.table.setItem(row, 1, QTableWidgetItem(m.get("email","NA")))
-            self.table.setItem(row, 2, QTableWidgetItem(m.get("membership","NA")))
-            self.table.setItem(row, 3, QTableWidgetItem(m.get("joined_on","N/A")))
-            self.table.setItem(row, 4, QTableWidgetItem(m.get("user_id","")))
-        self.table.resizeColumnsToContents()
-        self.stacked.setCurrentIndex(0)
+        try:
+            members = self.db_handler.get_all_members()  # Ensure this calls the local method
+            self.table.setRowCount(0)
+            for m in members:
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self.table.setItem(row, 0, QTableWidgetItem(m.get("username","N/A")))
+                self.table.setItem(row, 1, QTableWidgetItem(m.get("email","NA")))
+                self.table.setItem(row, 2, QTableWidgetItem(m.get("membership","NA")))
+                self.table.setItem(row, 3, QTableWidgetItem(m.get("joined_on","N/A")))
+                self.table.setItem(row, 4, QTableWidgetItem(m.get("user_id","")))
+            self.table.resizeColumnsToContents()
+            self.stacked.setCurrentIndex(0)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load members: {e}")
 
     def on_cell_double_clicked(self, row, column):
         """Show user exercise data in the same page using the stacked widget."""
-        user_id = self.table.item(row,4).text()
-        if user_id:
-            for i in reversed(range(self.user_data_layout.count())):
-                widget = self.user_data_layout.itemAt(i).widget()
-                if widget:
-                    widget.setParent(None)
+        try:
+            user_id = self.table.item(row,4).text()
+            if user_id:
+                for i in reversed(range(self.user_data_layout.count())):
+                    widget = self.user_data_layout.itemAt(i).widget()
+                    if widget:
+                        widget.setParent(None)
 
-            user_data_page = UserExerciseDataPage(self.db_handler, user_id, embedded=True)
-            # Connect the back_button signal to go_back_to_members
-            if hasattr(user_data_page, 'back_button'):
-                user_data_page.back_button.clicked.connect(self.go_back_to_members)
-            else:
-                # Handle the case where back_button might not be present
-                pass
-            self.user_data_layout.addWidget(user_data_page)
+                user_data_page = UserExerciseDataPage(self.db_handler, user_id, embedded=True)
+                # Connect the back_button signal to go_back_to_members
+                if hasattr(user_data_page, 'back_button'):
+                    user_data_page.back_button.clicked.connect(self.go_back_to_members)
+                else:
+                    # Handle the case where back_button might not be present
+                    pass
+                self.user_data_layout.addWidget(user_data_page)
 
-            self.stacked.setCurrentWidget(self.user_data_container)
+                self.stacked.setCurrentWidget(self.user_data_container)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to display user data: {e}")
 
     def go_back_to_members(self):
         """Navigate back to the Members List Page."""
         self.stacked.setCurrentIndex(0)
+        self.load_members()
 
     def delete_member(self):
         """Delete the selected member(s) from DB and face recognition model."""
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "Delete Member", "Please select a member to delete.")
-            return
+        try:
+            selected_rows = self.table.selectionModel().selectedRows()
+            if not selected_rows:
+                QMessageBox.warning(self, "Delete Member", "Please select a member to delete.")
+                return
 
-        reply = QMessageBox.question(
-            self, "Delete Member", "Are you sure you want to delete the selected member(s)? This will also delete all associated exercise data.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            for index in sorted(selected_rows, reverse=True):
-                username = self.table.item(index.row(), 0).text()
-                success = self.db_handler.delete_member_local(username)  # Ensure this calls the local method
-                if success:
-                    delete_success = self.face_recognizer.delete_user_from_model(username)
-                    if delete_success:
-                        QMessageBox.information(self, "Delete Member", f"Member '{username}' deleted successfully.")
-                    else:
-                        QMessageBox.warning(self, "Delete Member", f"Failed to delete member from face model: {username}")
-                    self.table.removeRow(index.row())
-                else:
-                    QMessageBox.warning(self, "Delete Member", f"Failed to delete member: {username}")
-            self.load_members()
+            reply = QMessageBox.question(
+                self, "Delete Member", "Are you sure you want to delete the selected member(s)? This will also delete all associated exercise data.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                for index in sorted(selected_rows, reverse=True):
+                    username = self.table.item(index.row(), 0).text()
+                    user_id = self.table.item(index.row(), 4).text()
+                    if username and user_id:
+                        success = self.db_handler.delete_member_local(username)  # Ensure this calls the local method
+                        if success:
+                            delete_success = self.face_recognizer.delete_user_from_model(username)
+                            if delete_success:
+                                QMessageBox.information(self, "Delete Member", f"Member '{username}' deleted successfully.")
+                            else:
+                                QMessageBox.warning(self, "Delete Member", f"Failed to delete member from face model: {username}")
+                            self.table.removeRow(index.row())
+                        else:
+                            QMessageBox.warning(self, "Delete Member", f"Failed to delete member: {username}")
+                self.load_members()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"An error occurred while deleting members: {e}")

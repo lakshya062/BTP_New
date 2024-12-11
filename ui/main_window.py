@@ -1,5 +1,3 @@
-# ui/main_window.py
-
 import json
 import os
 import sys
@@ -42,9 +40,7 @@ class MainWindow(QMainWindow):
         self.main_layout = QVBoxLayout()
         self.central_widget.setLayout(self.main_layout)
 
-        # Initialize DatabaseHandler
         self.db_handler = DatabaseHandler()
-
         self.global_face_recognizer = FaceRecognizer()
         if not self.global_face_recognizer.known_face_encodings:
             QMessageBox.warning(
@@ -53,7 +49,6 @@ class MainWindow(QMainWindow):
                 "No known faces loaded. All detections will be unknown until users are registered."
             )
 
-        # Synchronize face model with local db
         self.sync_face_model_with_db()
 
         self.tabs = QTabWidget()
@@ -102,11 +97,9 @@ class MainWindow(QMainWindow):
         self.sync_timer.start(60000)
 
     def sync_face_model_with_db(self):
-        """Ensure all users in the face recognition model are present in local db."""
         for name in self.global_face_recognizer.known_face_names:
             member = self.db_handler.get_member_info(name)
             if not member:
-                # Add user
                 joined_on = datetime.utcnow().strftime('%Y-%m-%d')
                 member_info = {
                     "user_id": str(uuid.uuid4()),
@@ -166,7 +159,6 @@ class MainWindow(QMainWindow):
         if user_name and user_name.strip():
             member = self.db_handler.get_member_info(user_name)
             if not member:
-                # Add user locally
                 member_info = {
                     "user_id": str(uuid.uuid4()),
                     "username": user_name,
@@ -237,7 +229,6 @@ class MainWindow(QMainWindow):
         if username != "Unknown":
             member = self.db_handler.get_member_info(username)
             if not member:
-                # Add user locally
                 member_info = {
                     "user_id": str(uuid.uuid4()),
                     "username": username,
@@ -250,7 +241,6 @@ class MainWindow(QMainWindow):
                     self.status_bar.showMessage(f"Added {username} to local database.", 5000)
                     self.global_face_recognizer.reload_model()
                     self.member_list_page.load_members()
-            # Update profile page
             self.profile_page.update_profile(user_info)
 
     def delete_current_exercise(self):
@@ -323,17 +313,16 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(message, 5000)
 
     def update_counters(self, reps, sets):
-        pass  # Implement if needed
+        pass
 
     def sync_local_data_to_sqlite(self):
-        """Sync local data to the local SQLite database."""
-        # Since all data is already saved directly to SQLite, this function can be left empty or used for additional synchronization if needed.
+        # Already saving directly to SQLite, no extra sync needed.
         pass
 
     def closeEvent(self, event):
         self.save_config()
         for (page, cam_idx, ex) in self.exercise_pages:
             page.stop_exercise()
-        self.db_handler.close_connections()  # Ensure connections are closed
+        self.db_handler.close_connections()
         self.sync_local_data_to_sqlite()
         event.accept()
