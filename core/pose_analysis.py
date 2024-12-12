@@ -23,6 +23,7 @@ ARUCO_DICT = {
 arucoDict = cv2.aruco.Dictionary_get(ARUCO_DICT["DICT_5X5_100"])
 arucoParams = cv2.aruco.DetectorParameters_create()
 
+
 class ExerciseAnalyzer:
     def __init__(self, exercise, aruco_detector, database_handler, user_id=None):
         """
@@ -86,12 +87,14 @@ class ExerciseAnalyzer:
             else:
                 return False, None
         except Exception as e:
-            print(f"Error in detect_bend: {e}")
+            logging.error(f"Error in detect_bend: {e}")
             return False, None
 
     def analyze_exercise_form(self, landmarks, frame):
         feedback_texts = []
+        icons = []  # Placeholder if icons are to be used in the future
 
+        # Bend Detection (if applicable)
         if exercise_config[self.exercise].get('bend_detection'):
             bend_detected, bend_type = self.detect_bend(landmarks)
             if bend_detected:
@@ -103,6 +106,7 @@ class ExerciseAnalyzer:
             else:
                 self.bend_warning_displayed = False
 
+        # Analyze each relevant angle
         for angle_name, points in exercise_config[self.exercise]['angles'].items():
             try:
                 p1 = [landmarks[points[0].value].x, landmarks[points[0].value].y]
@@ -110,20 +114,21 @@ class ExerciseAnalyzer:
                 p3 = [landmarks[points[2].value].x, landmarks[points[2].value].y]
                 angle = calculate_joint_angle(p1, p2, p3)
             except Exception as e:
-                print(f"Error calculating angle for {angle_name}: {e}")
+                logging.error(f"Error calculating angle for {angle_name}: {e}")
                 angle = 0
 
+            # Detect ArUco markers for weight detection
             corners, ids, rejected = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
             if ids is not None:
                 try:
                     self.current_weight = int(ids[0][0])
                 except (IndexError, ValueError):
                     self.current_weight = 0
-                    print("We are not at correct place")
+                    logging.warning("Incorrect ArUco marker detected.")
             else:
                 self.current_weight = 0
 
-            # Stability detection with improved logic to prevent double counting
+            # Stability detection
             if not self.stable_start_detected:
                 down_min, down_max = exercise_config[self.exercise]['down_range']
                 if down_min <= angle <= down_max:
@@ -135,7 +140,7 @@ class ExerciseAnalyzer:
                         self.rep_state = 1  # Now we wait for up after starting from down
                 else:
                     self.stable_frames = max(0, self.stable_frames - 1)
-                continue
+                continue  # Skip rep counting until start is stable
 
             # Rep counting logic with state machine
             down_min, down_max = exercise_config[self.exercise]['down_range']
@@ -163,24 +168,23 @@ class ExerciseAnalyzer:
                     }
                     self.rep_data.append(rep_info)
 
-                    # Log the rep
-                    print(f"Rep {self.rep_count}: Start Angle = {self.rep_start_angle}, End Angle = {self.rep_end_angle}, Weight = {self.current_weight}")
-
             # Determine if a set is complete
             reps_per_set = exercise_config[self.exercise].get('reps_per_set', 12)
             if self.rep_count >= reps_per_set:
                 self.sets_reps.append(self.rep_count)
                 self.set_count += 1
                 self.rep_count = 0
-                self.last_update_time = time.time()
+                feedback_texts.append("Set complete!")
 
+            # Feedback for each angle
             feedback_text = f"{angle_name.replace('_', ' ').title()}: {int(angle)}°"
             feedback_texts.append(feedback_text)
 
+        # Display detected weight if any
         if self.current_weight > 0:
-            feedback_texts.append(f"Detected Weight: {self.current_weight} lbs")
+            feedback_texts.append(f"Weight: {self.current_weight} lbs")
 
-        return feedback_texts
+        return feedback_texts, icons
 
     def update_data(self):
         """Prepare exercise data for saving to the local database."""
@@ -214,8 +218,9 @@ class ExerciseAnalyzer:
             if insert_success:
                 return record
             else:
+                logging.error("Failed to insert exercise data into the database.")
                 return None
 
         except Exception as e:
-            print(f"Error updating exercise data: {e}")
+            logging.error(f"Error updating exercise data: {e}")
             return None

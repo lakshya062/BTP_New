@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import cv2
-import face_recognition as fr_lib  # Aliased to prevent conflicts
+import face_recognition as fr_lib
 import mediapipe as mp
 import logging
 from PySide6.QtCore import QThread, Signal
@@ -20,6 +20,62 @@ mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
 
+def draw_text_with_background(frame, text, position, font=cv2.FONT_HERSHEY_SIMPLEX,
+                             font_scale=0.6, font_color=(255, 255, 255),
+                             bg_color=(0, 0, 0), alpha=0.6, thickness=1):
+    """
+    Draws text with a semi-transparent background on the frame.
+
+    Args:
+        frame (ndarray): The video frame.
+        text (str): The text to draw.
+        position (tuple): Bottom-left corner of the text (x, y).
+        font (int): Font type.
+        font_scale (float): Font scale.
+        font_color (tuple): Text color in BGR.
+        bg_color (tuple): Background color in BGR.
+        alpha (float): Transparency factor.
+        thickness (int): Thickness of the text.
+    """
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    x, y = position
+    # Create the overlay
+    overlay = frame.copy()
+    # Define the rectangle coordinates
+    cv2.rectangle(overlay, (x, y - text_height - baseline - 5),
+                  (x + text_width + 10, y + 5), bg_color, -1)
+    # Blend the overlay with the frame
+    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+    # Put the text above the rectangle
+    cv2.putText(frame, text, (x + 5, y - 2), font, font_scale, font_color, thickness, cv2.LINE_AA)
+
+
+def draw_progress_bar(frame, label, current, total, position, bar_size=(200, 15), color=(0, 255, 0)):
+    """
+    Draws a progress bar on the frame.
+
+    Args:
+        frame (ndarray): The video frame.
+        label (str): Label for the progress bar.
+        current (int): Current progress value.
+        total (int): Total value for the progress bar.
+        position (tuple): Top-left corner of the progress bar (x, y).
+        bar_size (tuple): Size of the progress bar (width, height).
+        color (tuple): Color of the progress bar in BGR.
+    """
+    x, y = position
+    width, height = bar_size
+    # Draw the border
+    cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 255, 255), 1)
+    # Calculate the filled width
+    filled_width = int((current / total) * (width - 2))
+    filled_width = min(filled_width, width - 2)  # Ensure it doesn't exceed
+    # Draw the filled part
+    cv2.rectangle(frame, (x + 1, y + 1), (x + 1 + filled_width, y + height - 1), color, -1)
+    # Put the label above the progress bar
+    draw_text_with_background(frame, label, (x, y - 5), font_scale=0.5, bg_color=(50, 50, 50))
+
+
 class ExerciseWorker(QThread):
     frame_signal = Signal(object)
     thumbnail_frame_signal = Signal(object)
@@ -28,6 +84,7 @@ class ExerciseWorker(QThread):
     user_recognized_signal = Signal(dict)
     unknown_user_detected = Signal()
     data_updated = Signal()
+    audio_feedback_signal = Signal(str)  # New signal for audio feedback
 
     def __init__(self, db_handler, camera_index, exercise_choice='bicep_curl', face_recognizer=None, parent=None):
         super().__init__(parent)
@@ -118,37 +175,133 @@ class ExerciseWorker(QThread):
                     if results.pose_landmarks:
                         self.exercise_analyzer.no_pose_frames = 0
                         landmarks = results.pose_landmarks.landmark
-                        feedback_texts = self.exercise_analyzer.analyze_exercise_form(landmarks, frame_bgr)
+                        feedback_texts, _ = self.exercise_analyzer.analyze_exercise_form(landmarks, frame_bgr)
 
                         # Determine colors based on analysis
                         if not self.exercise_analyzer.stable_start_detected:
-                            connection_color = (255, 0, 0)
+                            connection_color = (255, 0, 0)  # Blue
                             landmark_color = (255, 0, 0)
                         elif self.exercise_analyzer.bend_warning_displayed:
-                            connection_color = (0, 0, 255)
+                            connection_color = (0, 0, 255)  # Red
                             landmark_color = (0, 0, 255)
                         else:
-                            connection_color = (0, 255, 0)
+                            connection_color = (0, 255, 0)  # Green
                             landmark_color = (0, 255, 0)
 
                         mp_drawing.draw_landmarks(
                             frame_bgr,
                             results.pose_landmarks,
                             mp_pose.POSE_CONNECTIONS,
-                            mp_drawing.DrawingSpec(color=connection_color, thickness=3, circle_radius=2),
+                            mp_drawing.DrawingSpec(color=connection_color, thickness=2, circle_radius=2),
                             mp_drawing.DrawingSpec(color=landmark_color, thickness=2, circle_radius=2)
                         )
 
+                        # Draw feedback texts
                         for i, text in enumerate(feedback_texts):
-                            color = (0, 255, 0)
+                            # Position feedback texts at bottom-left
+                            pos_x = 20
+                            pos_y = frame_bgr.shape[0] - 100 + (i * 20)
                             if "Warning" in text:
-                                color = (0, 0, 255)
-                            cv2.putText(frame_bgr, text, (10, 30 + (i * 30)),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                                color = (0, 0, 255)  # Red for warnings
+                            elif "Set complete!" in text or "Ready to start!" in text:
+                                color = (0, 255, 255)  # Yellow for encouragement
+                            else:
+                                color = (255, 255, 255)  # White for normal feedback
+                            draw_text_with_background(
+                                frame_bgr,
+                                text,
+                                (pos_x, pos_y),
+                                font_scale=0.6,
+                                font_color=color,
+                                bg_color=(50, 50, 50),
+                                alpha=0.6,
+                                thickness=1
+                            )
 
-                        rep_set_text = f"Reps: {self.exercise_analyzer.rep_count} | Sets: {self.exercise_analyzer.set_count}"
-                        cv2.putText(frame_bgr, rep_set_text, (10, 470),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                            # Emit audio feedback based on feedback_texts
+                            if "Warning" in text:
+                                self.audio_feedback_signal.emit(text)  # e.g., "Warning: Incorrect form!"
+                            elif "Set complete!" in text or "Ready to start!" in text:
+                                self.audio_feedback_signal.emit(text)  # e.g., "Great job!"
+
+                        # Draw rep and set counts at top-right with progress bars
+                        reps_per_set = exercise_config[self.exercise_choice].get('reps_per_set', 12)
+                        sets_per_session = exercise_config[self.exercise_choice].get('sets_per_session', 5)
+                        rep_set_text = f"Reps: {self.exercise_analyzer.rep_count} / {reps_per_set}"
+                        set_text = f"Sets: {self.exercise_analyzer.set_count} / {sets_per_session}"
+                        frame_width = frame_bgr.shape[1]
+
+                        draw_text_with_background(
+                            frame_bgr,
+                            rep_set_text,
+                            (frame_width - 220, 30),
+                            font_scale=0.6,
+                            font_color=(255, 255, 255),
+                            bg_color=(50, 50, 50),
+                            alpha=0.6,
+                            thickness=1
+                        )
+                        draw_text_with_background(
+                            frame_bgr,
+                            set_text,
+                            (frame_width - 220, 60),
+                            font_scale=0.6,
+                            font_color=(255, 255, 255),
+                            bg_color=(50, 50, 50),
+                            alpha=0.6,
+                            thickness=1
+                        )
+
+                        # Draw progress bars at top-right corner
+                        # MARKER: Progress Bar Position
+                        draw_progress_bar(
+                            frame_bgr,
+                            "Reps Progress",
+                            self.exercise_analyzer.rep_count,
+                            reps_per_set,
+                            (frame_width - 220, 20),
+                            bar_size=(200, 15),
+                            color=(0, 255, 0)
+                        )
+                        draw_progress_bar(
+                            frame_bgr,
+                            "Sets Progress",
+                            self.exercise_analyzer.set_count,
+                            sets_per_session,
+                            (frame_width - 220, 150),
+                            bar_size=(200, 15),
+                            color=(0, 255, 0)
+                        )
+
+                        # Encourage the user when halfway through a set
+                        if self.exercise_analyzer.rep_count == reps_per_set // 2:
+                            encouragement_text = "Great halfway mark! Keep going!"
+                            draw_text_with_background(
+                                frame_bgr,
+                                encouragement_text,
+                                (frame_width // 2 - 150, 30),
+                                font_scale=0.6,
+                                font_color=(0, 255, 255),  # Yellow
+                                bg_color=(50, 50, 50),
+                                alpha=0.6,
+                                thickness=1
+                            )
+                            self.audio_feedback_signal.emit(encouragement_text)
+
+                        # Encourage the user when a set is complete
+                        if "Set complete!" in feedback_texts:
+                            encouragement_text = "Excellent work! Take a short break."
+                            draw_text_with_background(
+                                frame_bgr,
+                                encouragement_text,
+                                (frame_width // 2 - 150, 60),
+                                font_scale=0.6,
+                                font_color=(0, 255, 255),  # Yellow
+                                bg_color=(50, 50, 50),
+                                alpha=0.6,
+                                thickness=1
+                            )
+                            self.audio_feedback_signal.emit(encouragement_text)
 
                         final_frame = frame_bgr
                         self.frame_signal.emit(final_frame)
@@ -185,8 +338,9 @@ class ExerciseWorker(QThread):
 
                     self.msleep(10)
                     continue
+
                 except Exception as e:
-                    self.status_signal.emit(f"Exercise analysis error: {e}")
+                    self.status_signal.emit("Exercise analysis error.")
                     logging.error(f"Exercise analysis error: {e}")
                     self.msleep(10)
                     continue
@@ -231,7 +385,7 @@ class ExerciseWorker(QThread):
                     self.msleep(10)
                     continue
                 except Exception as e:
-                    self.status_signal.emit(f"New user registration error: {e}")
+                    self.status_signal.emit("New user registration error.")
                     logging.error(f"New user registration error: {e}")
                     self.msleep(10)
                     continue
@@ -240,16 +394,16 @@ class ExerciseWorker(QThread):
                 try:
                     frame_face_processed, face_locations, face_names = self.face_recognizer.recognize_faces(frame)
 
-                    # Draw boxes
+                    # Draw boxes and names
                     for ((top, right, bottom, left), name) in zip(face_locations, face_names):
                         top *= 4
                         right *= 4
                         bottom *= 4
                         left *= 4
                         cv2.rectangle(display_frame, (left, top), (right, bottom), (0, 255, 0), 2)
-                        cv2.rectangle(display_frame, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
-                        font = cv2.FONT_HERSHEY_DUPLEX
-                        cv2.putText(display_frame, name, (left + 6, bottom - 6), font, 0.8, (255, 255, 255), 1)
+                        cv2.rectangle(display_frame, (left, bottom - 20), (right, bottom), (0, 255, 0), cv2.FILLED)
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        cv2.putText(display_frame, name, (left + 5, bottom - 5), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
                     if len(face_names) > 0:
                         if all(n == "Unknown" for n in face_names):
@@ -301,21 +455,18 @@ class ExerciseWorker(QThread):
                     self.frame_signal.emit(display_frame)
                     self.thumbnail_frame_signal.emit(thumb)
                 except Exception as e:
-                    self.status_signal.emit(f"Face recognition error: {e}")
+                    self.status_signal.emit("Face recognition error.")
                     logging.error(f"Face recognition error: {e}")
 
             self.msleep(10)
 
         # After loop ends
         self.cleanup()
-        cap.release()
-        mp_pose_solution.close()
-        logging.info("ExerciseWorker thread terminated.")
 
     def cleanup(self):
         """Handle cleanup operations when stopping the worker."""
-        if self.exercise_analyzer:
-            try:
+        try:
+            if self.exercise_analyzer:
                 record = self.exercise_analyzer.update_data()
                 if record:
                     insert_success = self.db_handler.insert_exercise_data_local(record)
@@ -325,7 +476,23 @@ class ExerciseWorker(QThread):
                         logging.error("Failed to save exercise data locally during cleanup.")
                 else:
                     logging.warning("No exercise data to save during cleanup.")
-            except Exception as e:
-                self.status_signal.emit(f"Error updating exercise data during cleanup: {e}")
-                logging.error(f"Error updating exercise data during cleanup: {e}")
-        self.data_updated.emit()
+
+            # Emit data_updated signal
+            self.data_updated.emit()
+
+            # Safely disconnect signals
+            try:
+                self.frame_signal.disconnect()
+                self.thumbnail_frame_signal.disconnect()
+                self.status_signal.disconnect()
+                self.counters_signal.disconnect()
+                self.user_recognized_signal.disconnect()
+                self.unknown_user_detected.disconnect()
+                self.data_updated.disconnect()
+                self.audio_feedback_signal.disconnect()
+                logging.info("Successfully disconnected all signals.")
+            except TypeError as te:
+                logging.error(f"Error disconnecting signals: {te}")
+        except Exception as e:
+            self.status_signal.emit("Error during cleanup.")
+            logging.error(f"Error during cleanup: {e}")

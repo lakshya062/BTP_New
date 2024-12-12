@@ -1,9 +1,8 @@
-# ui/cameras_overview_page.py
-
+# ui/cameras_overview_page.py (unchanged except grid_mode logic)
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QScrollArea, QGridLayout, QLabel, QFrame
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QPixmap, QImage
 import cv2
 import math
@@ -32,15 +31,13 @@ class CamerasOverviewPage(QWidget):
         self.layout.addWidget(self.scroll_area)
 
         self.thumbnails = {}
-        self.grid_mode = 4  # Default to 4 screens (2x2)
+        self.grid_mode = 4  # Default
 
     def set_grid_mode(self, screens):
-        """Set the grid layout based on the number of screens."""
         self.grid_mode = screens
         self.relayout_thumbnails()
 
     def compute_rows_cols(self, count):
-        """Compute number of rows and columns based on grid_mode."""
         if self.grid_mode == 2:
             rows = 1
             cols = 2
@@ -59,59 +56,58 @@ class CamerasOverviewPage(QWidget):
         return rows, cols
 
     def add_camera_display(self, camera_index, exercise):
-        """Add a camera thumbnail display."""
         key = (camera_index, exercise)
         if key in self.thumbnails:
-            return  # Avoid adding duplicate thumbnails
+            logging.warning(f"Attempted to add duplicate thumbnail for cam_{camera_index}, exercise '{exercise}'.")
+            return
 
-        # Frame to hold thumbnail and label
         frame = QFrame()
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet("background-color: #2E2E2E; border: 2px solid #007ACC; border-radius: 8px;")
         v_layout = QVBoxLayout()
         frame.setLayout(v_layout)
 
-        # Thumbnail Label
-        label = QLabel(f"{exercise} (cam_{camera_index})")
+        label_pixmap = QLabel()
+        label_pixmap.setAlignment(Qt.AlignCenter)
+        label_pixmap.setFixedSize(320, 180)
+        label_pixmap.setStyleSheet("border: 1px solid #555555; border-radius: 4px;")
+        placeholder = QPixmap(label_pixmap.size())
+        placeholder.fill(Qt.darkGray)
+        label_pixmap.setPixmap(placeholder)
+
+        label = QLabel(f"{exercise.replace('_', ' ').title()} (cam_{camera_index})")
         label.setAlignment(Qt.AlignCenter)
         label.setStyleSheet("color: #FFFFFF; font-size: 12pt; margin-top: 5px;")
         label.setFixedHeight(30)
 
-        # Initial Placeholder Image
-        placeholder = QPixmap(320, 180)
-        placeholder.fill(Qt.darkGray)
-        label_pixmap = QLabel()
-        label_pixmap.setPixmap(placeholder)
-        label_pixmap.setFixedSize(320, 180)
-        label_pixmap.setStyleSheet("border: 1px solid #555555; border-radius: 4px;")
-
         v_layout.addWidget(label_pixmap)
         v_layout.addWidget(label)
 
-        self.thumbnails[key] = label_pixmap
+        self.thumbnails[key] = frame
+        logging.info(f"Added thumbnail for cam_{camera_index}, exercise '{exercise}'.")
         self.relayout_thumbnails()
 
     def remove_camera_display(self, camera_index, exercise):
-        """Remove a camera thumbnail display."""
         key = (camera_index, exercise)
         if key in self.thumbnails:
-            label = self.thumbnails[key]
-            self.grid_layout.removeWidget(label)
-            label.deleteLater()
+            frame = self.thumbnails[key]
+            self.grid_layout.removeWidget(frame)
+            frame.deleteLater()
             del self.thumbnails[key]
+            logging.info(f"Removed thumbnail for cam_{camera_index}, exercise '{exercise}'.")
             self.relayout_thumbnails()
+        else:
+            logging.warning(f"Attempted to remove non-existent thumbnail for cam_{camera_index}, exercise '{exercise}'.")
 
     def clear_thumbnails(self):
-        """Clear all camera thumbnails."""
-        for key, label in list(self.thumbnails.items()):
-            self.grid_layout.removeWidget(label)
-            label.deleteLater()
+        for key, frame in list(self.thumbnails.items()):
+            self.grid_layout.removeWidget(frame)
+            frame.deleteLater()
             del self.thumbnails[key]
+            logging.info(f"Cleared thumbnail for cam_{key[0]}, exercise '{key[1]}'.")
         self.relayout_thumbnails()
 
     def relayout_thumbnails(self):
-        """Rearrange thumbnails based on the current grid mode."""
-        # Remove all widgets from the grid layout
         while self.grid_layout.count():
             child = self.grid_layout.takeAt(0)
             if child.widget():
@@ -119,30 +115,39 @@ class CamerasOverviewPage(QWidget):
 
         count = len(self.thumbnails)
         if count == 0:
-            return  # Nothing to layout
+            return
 
         rows, cols = self.compute_rows_cols(count)
+        logging.debug(f"Relayout thumbnails to {rows} rows and {cols} columns.")
 
         items = list(self.thumbnails.items())
 
-        for idx, ((ci, ex), lbl) in enumerate(items):
+        for idx, ((ci, ex), frame) in enumerate(items):
             row = idx // cols
             col = idx % cols
-            self.grid_layout.addWidget(lbl, row, col)
+            self.grid_layout.addWidget(frame, row, col)
+            logging.debug(f"Placed cam_{ci}, exercise '{ex}' at row {row}, column {col}.")
 
-    def update_thumbnail(self, camera_index, exercise, frame):
-        """Update the thumbnail with the latest frame."""
+    @Slot(object, int, str)
+    def update_thumbnail(self, frame, camera_index, exercise):
         key = (camera_index, exercise)
         if key not in self.thumbnails:
+            logging.warning(f"Received frame for unknown camera/exercise: cam_{camera_index}, exercise '{exercise}'.")
             return
-        label = self.thumbnails[key]
-        try:
-            rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_image.shape
-            bytes_per_line = ch * w
-            qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            pix = QPixmap.fromImage(qimg)
-            scaled_pix = pix.scaled(label.width(), label.height(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            label.setPixmap(scaled_pix)
-        except Exception as e:
-            logging.error(f"Error updating thumbnail for cam_{camera_index}: {e}")
+
+        frame_widget = self.thumbnails[key]
+        label_pixmap = frame_widget.findChild(QLabel)
+        if label_pixmap:
+            try:
+                rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_image.shape
+                bytes_per_line = ch * w
+                qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pix = QPixmap.fromImage(qimg)
+                scaled_pix = pix.scaled(label_pixmap.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                label_pixmap.setPixmap(scaled_pix)
+                logging.debug(f"Updated thumbnail for cam_{camera_index}, exercise '{exercise}'.")
+            except Exception as e:
+                logging.error(f"Error updating thumbnail for cam_{camera_index}, exercise '{exercise}': {e}")
+        else:
+            logging.error(f"Label pixmap not found in frame for cam_{camera_index}, exercise '{exercise}'.")

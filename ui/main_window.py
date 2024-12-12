@@ -6,9 +6,9 @@ import sys
 import uuid
 from PySide6.QtWidgets import (
     QApplication, QMessageBox, QMainWindow, QWidget, QVBoxLayout, QTabWidget,
-    QStatusBar, QPushButton, QHBoxLayout, QComboBox, QInputDialog, QDialog, QLabel
+    QStatusBar, QPushButton, QHBoxLayout, QComboBox, QInputDialog, QDialog, QLabel, QFrame, QSizePolicy
 )
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QIcon, QGuiApplication, QMovie
 from PySide6.QtCore import Qt, QTimer, Slot, QSize
 from core.database import DatabaseHandler
 from core.face_recognition import FaceRecognizer
@@ -21,6 +21,7 @@ from ui.home_page import HomePage
 import cv2
 import logging
 from datetime import datetime
+from functools import partial
 
 def detect_available_cameras(max_cameras=10):
     available_cams = []
@@ -31,23 +32,170 @@ def detect_available_cameras(max_cameras=10):
             cap.release()
     return available_cams
 
-class MainWindow(QMainWindow):
-    CONFIG_FILE = "config.json"
 
+class SmartMirrorWindow(QMainWindow):
+    """
+    Window for the smart mirror display, split into two halves:
+    - Top half: Camera(s) display grid.
+    - Bottom half: Transition visuals (e.g., animated GIF).
+    """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Smart Gym Client System")
-        self.setMinimumSize(1600, 1000)
-        font = QFont("Segoe UI", 10)
-        self.setFont(font)
+        self.setWindowFlag(Qt.FramelessWindowHint)
 
-        # Central Widget and Layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout()
         self.central_widget.setLayout(self.main_layout)
 
-        # Database and Face Recognizer Initialization
+        # Top half frame for cameras
+        self.top_frame = QFrame()
+        self.top_frame.setStyleSheet("background-color: black;")
+        self.top_layout = QVBoxLayout(self.top_frame)
+        self.top_layout.setContentsMargins(0, 0, 0, 0)
+
+        from PySide6.QtWidgets import QGridLayout
+        self.grid_layout = QGridLayout()
+        self.grid_layout.setSpacing(15)
+        self.top_layout.addLayout(self.grid_layout)
+
+        # Bottom half frame for transitions
+        self.bottom_frame = QFrame()
+        self.bottom_frame.setStyleSheet("background-color: black;")
+        self.bottom_layout = QVBoxLayout(self.bottom_frame)
+        self.bottom_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Add a label to show transition visuals (gif or static image)
+        self.transition_label = QLabel()
+        self.transition_label.setAlignment(Qt.AlignCenter)
+        self.transition_label.setStyleSheet("background-color: black;")
+        # Load a gif animation (Make sure transition.gif exists in resources)
+        gif_path = os.path.join("resources", "transition.gif")
+        if os.path.exists(gif_path):
+            self.movie = QMovie(gif_path)
+            self.transition_label.setMovie(self.movie)
+            self.movie.start()
+        else:
+            # If no gif is available, use a gradient placeholder
+            self.transition_label.setText("Transition Visual")
+            self.transition_label.setStyleSheet("""
+                QLabel {
+                    background: qlineargradient(
+                        spread:pad, x1:0, y1:0, x2:1, y2:1,
+                        stop:0 #000000, stop:1 #444444
+                    );
+                    color: white;
+                    font-size: 24px;
+                }
+            """)
+
+        self.bottom_layout.addWidget(self.transition_label)
+
+        # Add the top and bottom frames to the main layout, dividing the screen in half
+        self.main_layout.addWidget(self.top_frame, 1)
+        self.main_layout.addWidget(self.bottom_frame, 1)
+
+        self.camera_labels = {}
+        self.setStyleSheet("background-color: black;")
+
+    def set_displays(self, displays):
+        if len(displays) > 1:
+            screen = displays[1]
+            geometry = screen.availableGeometry()
+            self.setGeometry(geometry)
+            self.move(geometry.topLeft())
+            self.showFullScreen()
+
+    def add_camera_display(self, camera_index, exercise):
+        key = (camera_index, exercise)
+        if key not in self.camera_labels:
+            label = QLabel(self)
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("background-color: #1E1E1E; border: 2px solid #007ACC; border-radius: 8px;")
+            # Set size policy to ensure it expands evenly without causing re-layout loops
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            # No scaled contents; we do manual scaling each frame
+            self.camera_labels[key] = label
+            self.relayout_thumbnails()
+
+    def remove_camera_display(self, camera_index, exercise):
+        key = (camera_index, exercise)
+        if key in self.camera_labels:
+            lbl = self.camera_labels[key]
+            self.grid_layout.removeWidget(lbl)
+            lbl.deleteLater()
+            del self.camera_labels[key]
+            self.relayout_thumbnails()
+
+    def relayout_thumbnails(self):
+        while self.grid_layout.count():
+            item = self.grid_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.setParent(None)
+
+        items = list(self.camera_labels.items())
+        count = len(items)
+
+        if count == 0:
+            return
+
+        rows, cols = self.compute_rows_cols(count)
+        for idx, ((ci, ex), lbl) in enumerate(items):
+            row = idx // cols
+            col = idx % cols
+            self.grid_layout.addWidget(lbl, row, col)
+
+        # Distribute space evenly
+        for i in range(rows):
+            self.grid_layout.setRowStretch(i, 1)
+        for j in range(cols):
+            self.grid_layout.setColumnStretch(j, 1)
+
+    def compute_rows_cols(self, count):
+        import math
+        rows = int(math.ceil(math.sqrt(count)))
+        cols = int(math.ceil(count / rows))
+        return rows, cols
+
+    def update_thumbnail(self, camera_index, exercise, frame):
+        key = (camera_index, exercise)
+        if key not in self.camera_labels:
+            return
+        label = self.camera_labels[key]
+        try:
+            rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            from PySide6.QtGui import QImage, QPixmap
+            h, w, ch = rgb_image.shape
+            bytes_per_line = ch * w
+            qimg = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            pix = QPixmap.fromImage(qimg)
+
+            # Maintain aspect ratio, no smoothing that might cause subtle increments
+            scaled_pix = pix.scaled(label.width(), label.height(), Qt.KeepAspectRatio, Qt.FastTransformation)
+            label.setPixmap(scaled_pix)
+        except Exception as e:
+            logging.error(f"Error updating smart mirror thumbnail for cam_{camera_index}: {e}")
+
+
+class MainWindow(QMainWindow):
+    CONFIG_FILE = "config.json"
+
+    def __init__(self):
+        super().__init__()
+        # Ensure smart_mirror_window is defined immediately
+        self.smart_mirror_window = None
+
+        self.setWindowTitle("Smart Gym Client System")
+        self.setMinimumSize(1600, 1000)
+        font = QFont("Segoe UI", 10)
+        self.setFont(font)
+
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout()
+        self.central_widget.setLayout(self.main_layout)
+
         self.db_handler = DatabaseHandler()
         self.global_face_recognizer = FaceRecognizer()
         if not self.global_face_recognizer.known_face_encodings:
@@ -59,20 +207,17 @@ class MainWindow(QMainWindow):
 
         self.sync_face_model_with_db()
 
-        # Tab Widget
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.North)
         self.tabs.setTabsClosable(False)
         self.tabs.setMovable(True)
-        self.tabs.setIconSize(QSize(24,24))  # Corrected
+        self.tabs.setIconSize(QSize(24, 24))
 
-        # Initialize Pages
         self.home_page = HomePage(self.db_handler)
         self.profile_page = ProfilePage()
         self.member_list_page = MemberListPage(self.db_handler, self.global_face_recognizer)
         self.cameras_overview_page = CamerasOverviewPage()
 
-        # Add Tabs with Icons
         self.tabs.addTab(self.home_page, QIcon(os.path.join("resources", "icons", "home.png")), "Home")
         self.tabs.addTab(self.profile_page, QIcon(os.path.join("resources", "icons", "profile.png")), "Profile")
         self.tabs.addTab(self.member_list_page, QIcon(os.path.join("resources", "icons", "members.png")), "Members")
@@ -80,7 +225,6 @@ class MainWindow(QMainWindow):
 
         self.main_layout.addWidget(self.tabs)
 
-        # Controls Layout
         self.controls_layout = QHBoxLayout()
         self.controls_layout.setSpacing(10)
         self.controls_layout.setContentsMargins(10, 10, 10, 10)
@@ -96,7 +240,6 @@ class MainWindow(QMainWindow):
         self.layout_selector.setCurrentIndex(1)
         self.layout_selector.setToolTip("Select Camera Layout")
 
-        # Adding Widgets to Controls Layout
         self.controls_layout.addWidget(self.add_exercise_button)
         self.controls_layout.addWidget(self.delete_exercise_button)
         self.controls_layout.addWidget(self.start_all_button)
@@ -106,22 +249,18 @@ class MainWindow(QMainWindow):
 
         self.main_layout.addLayout(self.controls_layout)
 
-        # Connect Buttons
         self.add_exercise_button.clicked.connect(self.add_exercise_dialog)
         self.delete_exercise_button.clicked.connect(self.delete_current_exercise)
         self.start_all_button.clicked.connect(self.start_all_exercises)
         self.layout_selector.currentIndexChanged.connect(self.change_camera_layout)
 
-        # Status Bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
-        # Exercise Pages Tracking
         self.exercise_pages = []
         self.load_config()
         self.update_overview_tab()
 
-        # Sync Timer
         self.sync_timer = QTimer(self)
         self.sync_timer.timeout.connect(self.sync_local_data_to_sqlite)
         self.sync_timer.start(60000)
@@ -216,12 +355,32 @@ class MainWindow(QMainWindow):
         exercise_page.unknown_user_detected.connect(self.prompt_new_user_name)
         exercise_page.worker_started.connect(lambda: self.connect_data_updated_signal(exercise_page))
 
-        tab_label = f"{exercise} (cam_{camera_index})"
+        # If smart_mirror_window is already created, connect signals
+        if self.smart_mirror_window:
+            self.smart_mirror_window.add_camera_display(camera_index, exercise)
+            exercise_page.worker.frame_signal.connect(
+                partial(self.smart_mirror_window.update_thumbnail, camera_index, exercise)
+            )
+
+        tab_label = f"{exercise.replace('_', ' ').title()} (cam_{camera_index})"
         self.tabs.addTab(exercise_page, QIcon(os.path.join("resources", "icons", "exercise.png")), tab_label)
         self.exercise_pages.append((exercise_page, camera_index, exercise, user_name))
 
         if start_immediately:
             exercise_page.start_exercise()
+            # Create and show smart mirror window if not exists and second display is available
+            if self.smart_mirror_window is None:
+                screens = QGuiApplication.screens()
+                if len(screens) > 1:
+                    self.smart_mirror_window = SmartMirrorWindow()
+                    self.smart_mirror_window.set_displays(screens)
+                    # Now connect frame_signal for this exercise to the mirror
+                    self.smart_mirror_window.add_camera_display(camera_index, exercise)
+                    exercise_page.worker.frame_signal.connect(
+                        partial(self.smart_mirror_window.update_thumbnail, camera_index, exercise)
+                    )
+            if self.smart_mirror_window and not self.smart_mirror_window.isVisible():
+                self.smart_mirror_window.show()
 
         self.update_overview_tab()
 
@@ -280,7 +439,7 @@ class MainWindow(QMainWindow):
 
     def delete_current_exercise(self):
         current_idx = self.tabs.currentIndex()
-        if current_idx < 4:  # Now first four tabs are Home, Profile, Members, Cameras
+        if current_idx < 4:
             QMessageBox.information(self, "Cannot Delete", "Cannot delete default tabs.")
             return
 
@@ -295,6 +454,15 @@ class MainWindow(QMainWindow):
             for i, (page, cam_idx, ex, user) in enumerate(self.exercise_pages):
                 if page == widget:
                     page.stop_exercise()
+                    if self.smart_mirror_window:
+                        self.smart_mirror_window.remove_camera_display(cam_idx, ex)
+                        # Disconnect frame_signal if connected
+                        try:
+                            page.worker.frame_signal.disconnect(
+                                partial(self.smart_mirror_window.update_thumbnail, cam_idx, ex)
+                            )
+                        except TypeError:
+                            pass
                     self.exercise_pages.pop(i)
                     break
             self.tabs.removeTab(current_idx)
@@ -311,14 +479,32 @@ class MainWindow(QMainWindow):
         if missing:
             msg = "Some cameras are not connected:\n"
             for (ci, ex) in missing:
-                msg += f"cam_{ci} for exercise {ex}\n"
+                msg += f"cam_{ci} for exercise {ex.replace('_', ' ').title()}\n"
             msg += "The remaining cameras will be started."
             QMessageBox.warning(self, "Missing Cameras", msg)
 
+        started_any = False
         for (page, cam_idx, ex, _) in self.exercise_pages:
             if cam_idx in available_cams:
                 if not page.is_exercise_running():
                     page.start_exercise()
+                    started_any = True
+
+        if started_any:
+            if self.smart_mirror_window is None:
+                screens = QGuiApplication.screens()
+                if len(screens) > 1:
+                    self.smart_mirror_window = SmartMirrorWindow()
+                    self.smart_mirror_window.set_displays(screens)
+                    # Connect all running exercises to the mirror
+                    for (p, ci, exx, _) in self.exercise_pages:
+                        if p.is_exercise_running():
+                            self.smart_mirror_window.add_camera_display(ci, exx)
+                            p.worker.frame_signal.connect(
+                                partial(self.smart_mirror_window.update_thumbnail, ci, exx)
+                            )
+            if self.smart_mirror_window and not self.smart_mirror_window.isVisible():
+                self.smart_mirror_window.show()
 
         self.update_overview_tab()
 
@@ -341,7 +527,7 @@ class MainWindow(QMainWindow):
             self.cameras_overview_page.add_camera_display(cam_idx, ex)
             if page.worker:
                 page.worker.thumbnail_frame_signal.connect(
-                    lambda frame, ci=cam_idx, exx=ex: self.cameras_overview_page.update_thumbnail(ci, exx, frame)
+                    partial(self.cameras_overview_page.update_thumbnail, cam_idx, ex)
                 )
 
     def update_status(self, message):
@@ -351,23 +537,21 @@ class MainWindow(QMainWindow):
         pass
 
     def sync_local_data_to_sqlite(self):
-        # Already saving directly to SQLite, no extra sync needed.
         pass
 
     def closeEvent(self, event):
-        # Confirm exit
         reply = QMessageBox.question(
             self, 'Confirm Exit',
             "Are you sure you want to exit the application?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            # Stop all exercise workers
-            for (page, cam_idx, ex, _) in self.exercise_pages[:]:  # Iterate over a copy
+            for (page, cam_idx, ex, _) in self.exercise_pages[:]:
                 page.stop_exercise()
-            # After all exercises have been stopped, proceed
             self.db_handler.close_connections()
             self.sync_local_data_to_sqlite()
+            if self.smart_mirror_window:
+                self.smart_mirror_window.close()
             event.accept()
         else:
             event.ignore()

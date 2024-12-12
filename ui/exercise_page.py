@@ -4,10 +4,11 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QGroupBox
 )
 from PySide6.QtGui import QPixmap, QImage, QFont, QIcon
-from PySide6.QtCore import Qt, Slot, Signal, QSize
+from PySide6.QtCore import Qt, Slot, Signal
 import numpy as np
 from ui.worker import ExerciseWorker
 import os
+
 
 class ExercisePage(QWidget):
     status_message = Signal(str)
@@ -25,6 +26,13 @@ class ExercisePage(QWidget):
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+
+        # Exercise Title
+        self.title_label = QLabel(f"Exercise: {self.exercise_choice.replace('_', ' ').title()}")
+        self.title_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("color: #FFFFFF;")
+        self.layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
 
         # Video Display
         self.video_label = QLabel("Video Feed")
@@ -86,14 +94,16 @@ class ExercisePage(QWidget):
                 exercise_choice=self.exercise_choice,
                 face_recognizer=self.face_recognizer
             )
+            # Connect worker signals to slots
             self.worker.frame_signal.connect(self.update_frame)
             self.worker.status_signal.connect(self.emit_status_message)
             self.worker.counters_signal.connect(self.emit_counters_update)
-            self.worker.user_recognized_signal.connect(self.user_recognized_signal.emit)
+            self.worker.user_recognized_signal.connect(self.handle_user_recognized)
             self.worker.unknown_user_detected.connect(self.prompt_new_user_name)
-            self.worker_started.connect(self.emit_worker_started)
+            self.worker.data_updated.connect(self.on_data_updated)
+            self.worker.started.connect(self.on_worker_started)
+
             self.worker.start()
-            self.worker_started.emit()
 
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -102,16 +112,17 @@ class ExercisePage(QWidget):
     def stop_exercise(self):
         """Stop exercise monitoring."""
         if self.worker:
-            # Disconnect signals first
+            # Disconnect signals safely
             try:
                 self.worker.frame_signal.disconnect(self.update_frame)
                 self.worker.status_signal.disconnect(self.emit_status_message)
                 self.worker.counters_signal.disconnect(self.emit_counters_update)
-                self.worker.user_recognized_signal.disconnect(self.user_recognized_signal.emit)
+                self.worker.user_recognized_signal.disconnect(self.handle_user_recognized)
                 self.worker.unknown_user_detected.disconnect(self.prompt_new_user_name)
-                self.worker.worker_started.disconnect(self.emit_worker_started)
-            except RuntimeError as e:
-                print(f"Error disconnecting signals: {e}")
+                self.worker.data_updated.disconnect(self.on_data_updated)
+                self.worker.started.disconnect(self.on_worker_started)
+            except TypeError as e:
+                self.status_message.emit(f"Error disconnecting signals: {e}")
 
             # Request the worker to stop and wait for it to finish
             self.worker.request_stop()
@@ -128,7 +139,9 @@ class ExercisePage(QWidget):
         blank_pixmap.fill(Qt.black)
         self.video_label.setPixmap(blank_pixmap)
 
-    def emit_worker_started(self):
+    def on_worker_started(self):
+        """Handle worker started signal."""
+        self.worker_started.emit()
         self.status_message.emit("Worker thread started.")
 
     def is_exercise_running(self):
@@ -161,20 +174,24 @@ class ExercisePage(QWidget):
         self.rep_label.setText(f"Reps: {reps}")
         self.set_label.setText(f"Sets: {sets}")
 
+    @Slot(dict)
+    def handle_user_recognized(self, user_info):
+        """Handle recognized user information."""
+        self.user_recognized_signal.emit(user_info)
+
     @Slot()
     def prompt_new_user_name(self):
         """Emit signal to prompt for new user name."""
         self.unknown_user_detected.emit(self)
 
-    def handle_new_user_registration(self, username):
-        """Handle the registration of a new user."""
-        # This method can be expanded based on the application's requirements
+    @Slot()
+    def on_data_updated(self):
+        """Handle data updated signal."""
         pass
 
-    def closeEvent(self, event):
-        """Ensure worker thread is stopped on closing the page."""
-        self.stop_exercise()
-        event.accept()
+    def handle_new_user_registration(self, username):
+        """Handle the registration of a new user."""
+        pass
 
     def start_user_registration(self, user_name):
         """
@@ -183,3 +200,10 @@ class ExercisePage(QWidget):
         """
         if self.worker:
             self.worker.start_record_new_user(user_name)
+
+    def closeEvent(self, event):
+        """Ensure worker thread is stopped on closing the page."""
+        self.stop_exercise()
+        event.accept()
+
+

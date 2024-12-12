@@ -21,9 +21,9 @@ def main():
             app.setWindowIcon(QPixmap(icon_path))
         
         # Increase font size and set font family
-        font = QFont("Segoe UI", 10)
-        font.setPointSize(10)
-        app.setFont(font)
+        # font = QFont("Segoe UI", 10)
+        # font.setPointSize(10)
+        # app.setFont(font)
 
         # Optional: Add Splash Screen
         splash_pix = QPixmap(os.path.join("resources", "icons", "splash.png")) if os.path.exists(os.path.join("resources", "icons", "splash.png")) else QPixmap()

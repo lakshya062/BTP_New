@@ -1,4 +1,3 @@
-# core/utils.py
 import numpy as np
 
 def calculate_joint_angle(a, b, c):
@@ -31,6 +30,8 @@ def calculate_bend_angle(a, b):
         vertical = np.array([0, -1])  # Assuming y-axis points down
 
         # Normalize vectors
+        if np.linalg.norm(vector) == 0:
+            return 0
         vector_norm = vector / np.linalg.norm(vector)
         vertical_norm = vertical / np.linalg.norm(vertical)
 

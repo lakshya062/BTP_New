@@ -54,6 +54,34 @@ class HomePage(QWidget):
         exercises_layout.addWidget(exercises_value)
         summary_layout.addLayout(exercises_layout)
 
+        # Total Sets
+        total_sets = self.db_handler.get_total_sets()
+        sets_label = QLabel("Total Sets")
+        sets_label.setFont(QFont("Segoe UI", 14))
+        sets_label.setAlignment(Qt.AlignCenter)
+        sets_value = QLabel(str(total_sets))
+        sets_value.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        sets_value.setAlignment(Qt.AlignCenter)
+        sets_layout = QVBoxLayout()
+        sets_layout.addWidget(sets_label)
+        sets_layout.addWidget(sets_value)
+        summary_layout.addLayout(sets_layout)
+
+        # Total Reps
+        total_reps = self.db_handler.get_total_reps()
+        reps_label = QLabel("Total Reps")
+        reps_label.setFont(QFont("Segoe UI", 14))
+        reps_label.setAlignment(Qt.AlignCenter)
+        reps_value = QLabel(str(total_reps))
+        reps_value.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        reps_value.setAlignment(Qt.AlignCenter)
+        reps_layout = QVBoxLayout()
+        reps_layout.addWidget(reps_label)
+        reps_layout.addWidget(reps_value)
+        summary_layout.addLayout(reps_layout)
+
+        layout.addWidget(summary_frame)
+
         # Recent Activities
         recent_activities_label = QLabel("Recent Activities")
         recent_activities_label.setFont(QFont("Segoe UI", 14))
@@ -62,8 +90,8 @@ class HomePage(QWidget):
 
         # Recent Activities Table
         self.recent_table = QTableWidget()
-        self.recent_table.setColumnCount(3)
-        self.recent_table.setHorizontalHeaderLabels(["Username", "Exercise", "Timestamp"])
+        self.recent_table.setColumnCount(4)
+        self.recent_table.setHorizontalHeaderLabels(["Username", "Exercise", "Sets", "Reps", "Timestamp"])
         self.recent_table.horizontalHeader().setStretchLastSection(True)
         self.recent_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.recent_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -114,8 +142,10 @@ class HomePage(QWidget):
             row = self.recent_table.rowCount()
             self.recent_table.insertRow(row)
             self.recent_table.setItem(row, 0, QTableWidgetItem(activity.get("username", "N/A")))
-            self.recent_table.setItem(row, 1, QTableWidgetItem(activity.get("exercise", "N/A")))
-            self.recent_table.setItem(row, 2, QTableWidgetItem(activity.get("timestamp", "N/A")))
+            self.recent_table.setItem(row, 1, QTableWidgetItem(activity.get("exercise", "N/A").replace('_', ' ').title()))
+            self.recent_table.setItem(row, 2, QTableWidgetItem(str(activity.get("set_count", 0))))
+            self.recent_table.setItem(row, 3, QTableWidgetItem(str(len(activity.get("rep_data", [])))))
+            self.recent_table.setItem(row, 4, QTableWidgetItem(activity.get("timestamp", "N/A")))
         self.recent_table.resizeColumnsToContents()
 
     def add_member(self):

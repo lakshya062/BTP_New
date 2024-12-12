@@ -203,27 +203,28 @@ class DatabaseHandler:
 
     # Local SQLite Methods for Exercise Data
     @retry_db_operation
-    def insert_exercise_data_local(self, exercise_data):
-        """Insert new exercise data into local SQLite DB."""
+    def insert_exercise_data_local(self, record):
+        """Insert exercise data into the local database."""
         try:
             with self.lock:
                 self.cursor.execute('''
                     INSERT INTO exercise_data (id, user_id, exercise, set_count, sets_reps, rep_data, timestamp, date)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    exercise_data["id"],
-                    exercise_data["user_id"],
-                    exercise_data["exercise"],
-                    exercise_data["set_count"],
-                    json.dumps(exercise_data["sets_reps"]),
-                    json.dumps(exercise_data["rep_data"]),
-                    exercise_data["timestamp"],
-                    exercise_data["date"]
+                    record['id'],
+                    record['user_id'],
+                    record['exercise'],
+                    record['set_count'],
+                    json.dumps(record['sets_reps']),
+                    json.dumps(record['rep_data']),
+                    record['timestamp'],
+                    record['date']
                 ))
-                logging.info(f"Inserted exercise data for user {exercise_data['user_id']} into local DB.")
+                self.connection.commit()
+                logging.info(f"Inserted exercise data for user {record['user_id']} into local DB.")
                 return True
-        except sqlite3.IntegrityError as e:
-            logging.error(f"IntegrityError while inserting exercise data: {e}")
+        except sqlite3.IntegrityError as ie:
+            logging.error(f"IntegrityError while inserting exercise data: {ie}")
             return False
         except sqlite3.Error as e:
             logging.error(f"SQLite error while inserting exercise data: {e}")
@@ -316,4 +317,36 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             logging.error(f"SQLite error in get_recent_activities: {e}")
             return []
+        
+    def get_total_sets(self):
+        """Retrieve the total number of sets across all exercises."""
+        try:
+            with self.lock:
+                self.cursor.execute('SELECT SUM(set_count) FROM exercise_data')
+                result = self.cursor.fetchone()[0]
+                count = result if result else 0
+                logging.info(f"Total sets: {count}")
+                return count
+        except sqlite3.Error as e:
+            logging.error(f"SQLite error in get_total_sets: {e}")
+            return 0
+
+    def get_total_reps(self):
+        """Retrieve the total number of reps across all exercises."""
+        try:
+            with self.lock:
+                self.cursor.execute('SELECT rep_data FROM exercise_data')
+                rows = self.cursor.fetchall()
+                total_reps = 0
+                for row in rows:
+                    rep_data = json.loads(row[0]) if row[0] else []
+                    total_reps += len(rep_data)
+                logging.info(f"Total reps: {total_reps}")
+                return total_reps
+        except sqlite3.Error as e:
+            logging.error(f"SQLite error in get_total_reps: {e}")
+            return 0
+        except json.JSONDecodeError as je:
+            logging.error(f"JSON decode error in get_total_reps: {je}")
+            return 0
 
