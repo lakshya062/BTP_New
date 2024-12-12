@@ -1,19 +1,17 @@
 # worker.py
 
 from datetime import datetime
-import time
 import cv2
 import face_recognition as fr_lib  # Aliased to prevent conflicts
 import mediapipe as mp
-import numpy as np
-import uuid
 import logging
-from PySide6.QtCore import QThread, Signal, Slot
+from PySide6.QtCore import QThread, Signal
 from core.database import DatabaseHandler
 from core.aruco_detection import ArucoDetector
 from core.pose_analysis import ExerciseAnalyzer
-from core.face_run import FaceRecognizer  # Updated import
+from core.face_run import FaceRecognizer
 from core.config import exercise_config
+import math
 
 logging.basicConfig(level=logging.INFO, filename='worker.log',
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -98,8 +96,6 @@ class ExerciseWorker(QThread):
                 mp_pose_solution.close()
                 return
 
-        # Updated occlusion_timeout to represent number of frames (e.g., 300 frames for ~3 seconds at 100fps)
-        # Adjusted based on actual frame rate
         occlusion_timeout = 90  # Approximately 3 seconds at 30 FPS
 
         while not self.stop_requested:
@@ -114,19 +110,17 @@ class ExerciseWorker(QThread):
 
             # If exercise analysis is active, skip face recognition to avoid interruptions
             if self.exercise_analysis_active and not self.capturing_new_user_data:
-                # Exercise Analysis Mode
                 try:
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     results = mp_pose_solution.process(frame_rgb)
                     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
                     if results.pose_landmarks:
-                        # Reset no_pose_frames since pose is detected
                         self.exercise_analyzer.no_pose_frames = 0
-
                         landmarks = results.pose_landmarks.landmark
                         feedback_texts = self.exercise_analyzer.analyze_exercise_form(landmarks, frame_bgr)
 
+                        # Determine colors based on analysis
                         if not self.exercise_analyzer.stable_start_detected:
                             connection_color = (255, 0, 0)
                             landmark_color = (255, 0, 0)
@@ -198,12 +192,9 @@ class ExerciseWorker(QThread):
                     continue
 
             if self.capturing_new_user_data:
-                # New User Registration Mode
                 try:
-                    # Use the FaceRecognizer's internal methods if available
-                    # Alternatively, use the aliased external library
                     small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                    rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)  # Ensure correct color conversion
+                    rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
                     face_locations = fr_lib.face_locations(rgb_small_frame)
                     encodings = fr_lib.face_encodings(rgb_small_frame, face_locations)
@@ -246,7 +237,6 @@ class ExerciseWorker(QThread):
                     continue
 
             if self.face_recognition_active:
-                # Face Recognition Mode
                 try:
                     frame_face_processed, face_locations, face_names = self.face_recognizer.recognize_faces(frame)
 
@@ -316,21 +306,26 @@ class ExerciseWorker(QThread):
 
             self.msleep(10)
 
-        # Cleanup method is already handled in the previous response
-        def cleanup(self):
-            """Handle cleanup operations when stopping the worker."""
-            if self.exercise_analyzer:
-                try:
-                    record = self.exercise_analyzer.update_data()
-                    if record:
-                        insert_success = self.db_handler.insert_exercise_data_local(record)
-                        if insert_success:
-                            logging.info("Exercise data saved locally during cleanup.")
-                        else:
-                            logging.error("Failed to save exercise data locally during cleanup.")
+        # After loop ends
+        self.cleanup()
+        cap.release()
+        mp_pose_solution.close()
+        logging.info("ExerciseWorker thread terminated.")
+
+    def cleanup(self):
+        """Handle cleanup operations when stopping the worker."""
+        if self.exercise_analyzer:
+            try:
+                record = self.exercise_analyzer.update_data()
+                if record:
+                    insert_success = self.db_handler.insert_exercise_data_local(record)
+                    if insert_success:
+                        logging.info("Exercise data saved locally during cleanup.")
                     else:
-                        logging.warning("No exercise data to save during cleanup.")
-                except Exception as e:
-                    self.status_signal.emit(f"Error updating exercise data during cleanup: {e}")
-                    logging.error(f"Error updating exercise data during cleanup: {e}")
-            self.data_updated.emit()
+                        logging.error("Failed to save exercise data locally during cleanup.")
+                else:
+                    logging.warning("No exercise data to save during cleanup.")
+            except Exception as e:
+                self.status_signal.emit(f"Error updating exercise data during cleanup: {e}")
+                logging.error(f"Error updating exercise data during cleanup: {e}")
+        self.data_updated.emit()

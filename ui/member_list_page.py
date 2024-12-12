@@ -2,11 +2,12 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, 
-    QPushButton, QHBoxLayout, QLabel, QStackedWidget, QMessageBox
+    QPushButton, QHBoxLayout, QLabel, QStackedWidget, QMessageBox, QLineEdit
 )
 from PySide6.QtCore import Qt, Signal
 from ui.user_exercise_data_page import UserExerciseDataPage
-
+from PySide6.QtGui import QIcon
+import os
 
 class MemberListPage(QWidget):
     # Signal to refresh members list externally if needed
@@ -20,12 +21,26 @@ class MemberListPage(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        # Header
         self.header = QLabel("Members")
         self.header.setAlignment(Qt.AlignCenter)
-        self.header.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.header.setStyleSheet("font-size: 20px; font-weight: bold; margin-bottom: 10px;")
+        self.layout.addWidget(self.header)
 
+        # Search Bar
+        self.search_layout = QHBoxLayout()
+        self.search_label = QLabel("Search:")
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Enter username or email...")
+        self.search_input.textChanged.connect(self.search_members)
+        self.search_layout.addWidget(self.search_label)
+        self.search_layout.addWidget(self.search_input)
+        self.layout.addLayout(self.search_layout)
+
+        # Stacked Widget for Switching Views
         self.stacked = QStackedWidget()
 
+        # Members List View
         self.members_widget = QWidget()
         self.members_layout = QVBoxLayout()
         self.members_widget.setLayout(self.members_layout)
@@ -37,32 +52,38 @@ class MemberListPage(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { background-color: #2E2E2E; color: #C5C6C7; }")
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        self.members_layout.addWidget(self.table)
 
-        self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(self.load_members)
-
-        self.delete_button = QPushButton("Delete Member")
-        self.delete_button.clicked.connect(self.delete_member)
-
+        # Buttons Layout
         self.members_buttons_layout = QHBoxLayout()
+        self.refresh_button = QPushButton(QIcon(os.path.join("resources", "icons", "refresh.png")), "Refresh")
+        self.refresh_button.setToolTip("Refresh the members list")
+        self.delete_button = QPushButton(QIcon(os.path.join("resources", "icons", "delete.png")), "Delete Member")
+        self.delete_button.setToolTip("Delete the selected member(s)")
         self.members_buttons_layout.addWidget(self.refresh_button)
         self.members_buttons_layout.addWidget(self.delete_button)
         self.members_buttons_layout.addStretch()
 
-        self.members_layout.addWidget(self.header)
-        self.members_layout.addWidget(self.table)
         self.members_layout.addLayout(self.members_buttons_layout)
         self.members_layout.addStretch()
 
         self.stacked.addWidget(self.members_widget)
 
+        # User Exercise Data View
         self.user_data_container = QWidget()
         self.user_data_layout = QVBoxLayout()
         self.user_data_container.setLayout(self.user_data_layout)
         self.stacked.addWidget(self.user_data_container)
 
         self.layout.addWidget(self.stacked)
+
+        # Connect Buttons
+        self.refresh_button.clicked.connect(self.load_members)
+        self.delete_button.clicked.connect(self.delete_member)
+
+        # Load Members Initially
         self.load_members()
 
     def load_members(self):
@@ -83,11 +104,23 @@ class MemberListPage(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load members: {e}")
 
+    def search_members(self, text):
+        """Filter members based on search input."""
+        for row in range(self.table.rowCount()):
+            match = False
+            for column in range(self.table.columnCount() -1):  # Exclude User ID from search
+                item = self.table.item(row, column)
+                if text.lower() in item.text().lower():
+                    match = True
+                    break
+            self.table.setRowHidden(row, not match)
+
     def on_cell_double_clicked(self, row, column):
         """Show user exercise data in the same page using the stacked widget."""
         try:
             user_id = self.table.item(row,4).text()
             if user_id:
+                # Clear previous widgets
                 for i in reversed(range(self.user_data_layout.count())):
                     widget = self.user_data_layout.itemAt(i).widget()
                     if widget:
@@ -98,7 +131,6 @@ class MemberListPage(QWidget):
                 if hasattr(user_data_page, 'back_button'):
                     user_data_page.back_button.clicked.connect(self.go_back_to_members)
                 else:
-                    # Handle the case where back_button might not be present
                     pass
                 self.user_data_layout.addWidget(user_data_page)
 

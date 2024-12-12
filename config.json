@@ -2,11 +2,8 @@
     "exercises": [
         {
             "camera_index": 0,
-            "exercise": "bicep_curl"
-        },
-        {
-            "camera_index": 2,
-            "exercise": "bicep_curl"
+            "exercise": "Bicep Curls",
+            "user_name": "Lakshya"
         }
     ]
 }

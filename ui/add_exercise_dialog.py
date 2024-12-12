@@ -1,15 +1,18 @@
 # ui/add_exercise_dialog.py
 
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
-from PySide6.QtCore import Qt
-
+from PySide6.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QMessageBox
+)
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QSize
+import os
 
 class AddExerciseDialog(QDialog):
     def __init__(self, available_cams, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Add Exercise")
         self.setModal(True)
-        self.setFixedSize(400, 300)
+        self.setFixedSize(450, 350)
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -19,6 +22,7 @@ class AddExerciseDialog(QDialog):
         cam_label = QLabel("Select Camera:")
         self.cam_combo = QComboBox()
         self.cam_combo.addItems([f"cam_{cam}" for cam in available_cams])
+        self.cam_combo.setToolTip("Choose a camera to associate with the exercise")
         cam_layout.addWidget(cam_label)
         cam_layout.addWidget(self.cam_combo)
 
@@ -28,6 +32,7 @@ class AddExerciseDialog(QDialog):
         self.exercise_combo = QComboBox()
         # Populate with available exercises from config or predefined list
         self.exercise_combo.addItems(["Bicep Curls", "Squats", "Deadlifts", "Bench Press"])  # Example exercises
+        self.exercise_combo.setToolTip("Choose the type of exercise")
         exercise_layout.addWidget(exercise_label)
         exercise_layout.addWidget(self.exercise_combo)
 
@@ -39,13 +44,16 @@ class AddExerciseDialog(QDialog):
         if parent:
             members = parent.db_handler.get_all_members_local()
             self.user_combo.addItems([member['username'] for member in members])
+        self.user_combo.setToolTip("Assign the exercise to an existing user")
         user_layout.addWidget(user_label)
         user_layout.addWidget(self.user_combo)
 
         # Buttons
         buttons_layout = QHBoxLayout()
-        self.ok_button = QPushButton("OK")
-        self.cancel_button = QPushButton("Cancel")
+        self.ok_button = QPushButton(QIcon(os.path.join("resources", "icons", "ok.png")), "OK")
+        self.cancel_button = QPushButton(QIcon(os.path.join("resources", "icons", "cancel.png")), "Cancel")
+        self.ok_button.setToolTip("Confirm and add the exercise")
+        self.cancel_button.setToolTip("Cancel and close the dialog")
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.ok_button)
         buttons_layout.addWidget(self.cancel_button)

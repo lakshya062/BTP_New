@@ -1,10 +1,10 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QPushButton, QHBoxLayout, QMessageBox, QStackedWidget
-)
+# ui/user_exercise_data_page.py
+
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QMessageBox, QStackedWidget
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from datetime import datetime
+import os
 
 class UserExerciseDataPage(QWidget):
     def __init__(self, db_handler, user_id, embedded=False):
@@ -16,32 +16,24 @@ class UserExerciseDataPage(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        # Header
         self.header = QLabel("Exercise Data")
-        self.header.setFont(QFont("Arial", 16, QFont.Bold))
+        self.header.setFont(QFont("Segoe UI", 16, QFont.Bold))
         self.header.setAlignment(Qt.AlignCenter)
+        self.header.setStyleSheet("margin-bottom: 20px;")
+        self.layout.addWidget(self.header)
 
+        # Stacked Widget
         self.stacked = QStackedWidget()
 
-        self.init_exercises_page()
-        self.init_sessions_page()
-        self.init_rep_details_page()
-
-        self.stacked.setCurrentWidget(self.exercises_page)
-
-        self.layout.addWidget(self.header)
-        self.layout.addWidget(self.stacked)
-
-        # Load exercises right after creation to ensure they are clickable
-        self.load_exercises()
-
-    def init_exercises_page(self):
+        # Exercises Page
         self.exercises_page = QWidget()
-        layout = QVBoxLayout()
-        self.exercises_page.setLayout(layout)
+        self.exercises_layout = QVBoxLayout()
+        self.exercises_page.setLayout(self.exercises_layout)
 
-        label = QLabel("Select an Exercise:")
-        label.setFont(QFont("Arial", 14))
-        layout.addWidget(label)
+        self.exercise_label = QLabel("Select an Exercise:")
+        self.exercise_label.setFont(QFont("Segoe UI", 14))
+        self.exercises_layout.addWidget(self.exercise_label)
 
         self.exercises_table = QTableWidget()
         self.exercises_table.setColumnCount(1)
@@ -50,25 +42,28 @@ class UserExerciseDataPage(QWidget):
         self.exercises_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.exercises_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.exercises_table.setAlternatingRowColors(True)
+        self.exercises_table.setStyleSheet("QTableWidget { background-color: #2E2E2E; color: #C5C6C7; }")
         self.exercises_table.cellDoubleClicked.connect(self.on_exercise_double_clicked)
-        layout.addWidget(self.exercises_table)
+        self.exercises_layout.addWidget(self.exercises_table)
 
+        # Back Button if Embedded
         if self.embedded:
-            self.back_button = QPushButton("Back to Members")
-            self.back_button.clicked.connect(self.go_back)
-            layout.addWidget(self.back_button, alignment=Qt.AlignRight)
+            self.back_button = QPushButton(QIcon(os.path.join("resources", "icons", "back.png")), "Back to Members")
+            self.back_button.setToolTip("Return to the members list")
+            self.exercises_layout.addWidget(self.back_button, alignment=Qt.AlignRight)
 
-        layout.addStretch()
+        self.exercises_layout.addStretch()
+
         self.stacked.addWidget(self.exercises_page)
 
-    def init_sessions_page(self):
+        # Sessions Page
         self.sessions_page = QWidget()
-        layout = QVBoxLayout()
-        self.sessions_page.setLayout(layout)
+        self.sessions_layout = QVBoxLayout()
+        self.sessions_page.setLayout(self.sessions_layout)
 
-        label = QLabel("Select a Session:")
-        label.setFont(QFont("Arial", 14))
-        layout.addWidget(label)
+        self.sessions_label = QLabel("Select a Session:")
+        self.sessions_label.setFont(QFont("Segoe UI", 14))
+        self.sessions_layout.addWidget(self.sessions_label)
 
         self.sessions_table = QTableWidget()
         self.sessions_table.setColumnCount(6)
@@ -78,24 +73,27 @@ class UserExerciseDataPage(QWidget):
         self.sessions_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.sessions_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.sessions_table.setAlternatingRowColors(True)
+        self.sessions_table.setStyleSheet("QTableWidget { background-color: #2E2E2E; color: #C5C6C7; }")
         self.sessions_table.cellDoubleClicked.connect(self.on_session_double_clicked)
-        layout.addWidget(self.sessions_table)
+        self.sessions_layout.addWidget(self.sessions_table)
 
-        self.back_to_exercises_button = QPushButton("Back to Exercises")
+        self.back_to_exercises_button = QPushButton(QIcon(os.path.join("resources", "icons", "back.png")), "Back to Exercises")
+        self.back_to_exercises_button.setToolTip("Return to the exercises list")
         self.back_to_exercises_button.clicked.connect(self.back_to_exercises)
-        layout.addWidget(self.back_to_exercises_button, alignment=Qt.AlignRight)
+        self.sessions_layout.addWidget(self.back_to_exercises_button, alignment=Qt.AlignRight)
 
-        layout.addStretch()
+        self.sessions_layout.addStretch()
+
         self.stacked.addWidget(self.sessions_page)
 
-    def init_rep_details_page(self):
+        # Rep Details Page
         self.rep_details_page = QWidget()
-        layout = QVBoxLayout()
-        self.rep_details_page.setLayout(layout)
+        self.rep_details_layout = QVBoxLayout()
+        self.rep_details_page.setLayout(self.rep_details_layout)
 
-        label = QLabel("Rep Details:")
-        label.setFont(QFont("Arial", 14))
-        layout.addWidget(label)
+        self.rep_label = QLabel("Rep Details:")
+        self.rep_label.setFont(QFont("Segoe UI", 14))
+        self.rep_details_layout.addWidget(self.rep_label)
 
         self.rep_table = QTableWidget()
         self.rep_table.setColumnCount(4)
@@ -104,16 +102,25 @@ class UserExerciseDataPage(QWidget):
         self.rep_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.rep_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.rep_table.setAlternatingRowColors(True)
-        layout.addWidget(self.rep_table)
+        self.rep_table.setStyleSheet("QTableWidget { background-color: #2E2E2E; color: #C5C6C7; }")
+        self.rep_details_layout.addWidget(self.rep_table)
 
-        self.back_to_sessions_button = QPushButton("Back to Sessions")
+        self.back_to_sessions_button = QPushButton(QIcon(os.path.join("resources", "icons", "back.png")), "Back to Sessions")
+        self.back_to_sessions_button.setToolTip("Return to the sessions list")
         self.back_to_sessions_button.clicked.connect(self.back_to_sessions)
-        layout.addWidget(self.back_to_sessions_button, alignment=Qt.AlignRight)
+        self.rep_details_layout.addWidget(self.back_to_sessions_button, alignment=Qt.AlignRight)
 
-        layout.addStretch()
+        self.rep_details_layout.addStretch()
+
         self.stacked.addWidget(self.rep_details_page)
 
+        self.layout.addWidget(self.stacked)
+
+        # Load Exercises Initially
+        self.load_exercises()
+
     def load_exercises(self):
+        """Load exercises from the database and populate the table."""
         self.exercises_table.setRowCount(0)
         data = self.db_handler.get_exercise_data_for_user(self.user_id)
         exercises = sorted(list(set([entry['exercise'] for entry in data])))
@@ -122,9 +129,11 @@ class UserExerciseDataPage(QWidget):
             self.exercises_table.insertRow(row)
             self.exercises_table.setItem(row, 0, QTableWidgetItem(exercise))
         self.exercises_table.resizeColumnsToContents()
+        self.stacked.setCurrentWidget(self.exercises_page)
 
     @Slot(int, int)
     def on_exercise_double_clicked(self, row, column):
+        """Show sessions for the selected exercise."""
         exercise_item = self.exercises_table.item(row, 0)
         if exercise_item:
             self.selected_exercise = exercise_item.text()
@@ -132,10 +141,11 @@ class UserExerciseDataPage(QWidget):
             self.stacked.setCurrentWidget(self.sessions_page)
 
     def load_sessions(self, exercise):
+        """Load sessions for the selected exercise."""
         self.sessions_table.setRowCount(0)
         data = self.db_handler.get_exercise_data_for_user(self.user_id)
         sessions = [entry for entry in data if entry['exercise'] == exercise]
-        # Handle None timestamps by replacing them with '' for sorting
+        # Sort sessions by timestamp descending
         sessions_sorted = sorted(sessions, key=lambda x: x['timestamp'] if x['timestamp'] else '', reverse=True)
         for session in sessions_sorted:
             row = self.sessions_table.rowCount()
@@ -151,6 +161,7 @@ class UserExerciseDataPage(QWidget):
 
     @Slot(int, int)
     def on_session_double_clicked(self, row, column):
+        """Show rep details for the selected session."""
         session_id_item = self.sessions_table.item(row, 5)
         if session_id_item:
             self.selected_session_id = session_id_item.text()
@@ -158,6 +169,7 @@ class UserExerciseDataPage(QWidget):
             self.stacked.setCurrentWidget(self.rep_details_page)
 
     def load_rep_details(self, session_id):
+        """Load rep details for the selected session."""
         self.rep_table.setRowCount(0)
         data = self.db_handler.get_exercise_data_for_user(self.user_id)
         session = next((entry for entry in data if entry['id'] == session_id), None)
@@ -175,13 +187,13 @@ class UserExerciseDataPage(QWidget):
         self.rep_table.resizeColumnsToContents()
 
     def back_to_exercises(self):
+        """Navigate back to the Exercises Page."""
         self.stacked.setCurrentWidget(self.exercises_page)
 
     def back_to_sessions(self):
+        """Navigate back to the Sessions Page."""
         self.stacked.setCurrentWidget(self.sessions_page)
 
     def go_back(self):
+        """Navigate back to the Members List Page."""
         self.parent().go_back_to_members() if self.embedded else self.close()
-
-    def showEvent(self, event):
-        super().showEvent(event)

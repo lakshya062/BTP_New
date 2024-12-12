@@ -1,11 +1,13 @@
 # ui/exercise_page.py
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QGroupBox
-from PySide6.QtGui import QPixmap, QImage
-from PySide6.QtCore import Qt, Slot, Signal
-
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QGroupBox
+)
+from PySide6.QtGui import QPixmap, QImage, QFont, QIcon
+from PySide6.QtCore import Qt, Slot, Signal, QSize
+import numpy as np
 from ui.worker import ExerciseWorker
-
+import os
 
 class ExercisePage(QWidget):
     status_message = Signal(str)
@@ -24,42 +26,54 @@ class ExercisePage(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        # Video Display
         self.video_label = QLabel("Video Feed")
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setFixedSize(960, 540)
-        self.video_label.setStyleSheet("background-color: #4C566A; border: 2px solid #81A1C1;")
+        self.video_label.setFixedSize(1280, 720)
+        self.video_label.setStyleSheet("background-color: #1E1E1E; border: 2px solid #007ACC; border-radius: 8px;")
 
-        self.start_button = QPushButton("Start")
-        self.stop_button = QPushButton("Stop")
+        self.layout.addWidget(self.video_label, alignment=Qt.AlignCenter)
+
+        # Controls Group
+        self.controls_group = QGroupBox("Controls")
+        self.controls_layout = QHBoxLayout()
+        self.controls_group.setLayout(self.controls_layout)
+
+        self.start_button = QPushButton(QIcon(os.path.join("resources", "icons", "start.png")), "Start")
+        self.start_button.setToolTip("Start monitoring exercise")
+        self.stop_button = QPushButton(QIcon(os.path.join("resources", "icons", "stop.png")), "Stop")
+        self.stop_button.setToolTip("Stop monitoring exercise")
         self.stop_button.setEnabled(False)
 
-        self.button_layout = QHBoxLayout()
-        self.button_layout.addWidget(self.start_button)
-        self.button_layout.addWidget(self.stop_button)
+        self.controls_layout.addWidget(self.start_button)
+        self.controls_layout.addWidget(self.stop_button)
+        self.controls_layout.addStretch()
 
+        # Counters
         self.rep_label = QLabel("Reps: 0")
         self.set_label = QLabel("Sets: 0")
-        self.rep_label.setStyleSheet("font-size: 14pt;")
-        self.set_label.setStyleSheet("font-size: 14pt;")
+        counter_font = QFont("Segoe UI", 12, QFont.Bold)
+        self.rep_label.setFont(counter_font)
+        self.set_label.setFont(counter_font)
+        self.rep_label.setStyleSheet("color: #FFFFFF;")
+        self.set_label.setStyleSheet("color: #FFFFFF;")
 
         self.counters_layout = QHBoxLayout()
         self.counters_layout.addWidget(self.rep_label)
         self.counters_layout.addWidget(self.set_label)
         self.counters_layout.addStretch()
 
-        self.controls_group = QGroupBox("Controls")
-        self.controls_layout = QVBoxLayout()
-        self.controls_layout.addLayout(self.button_layout)
+        # Add to Controls Group
         self.controls_layout.addLayout(self.counters_layout)
-        self.controls_group.setLayout(self.controls_layout)
-        self.controls_group.setStyleSheet("QGroupBox { border: 2px solid #81A1C1; border-radius: 8px; padding: 10px; }")
 
-        self.layout.addWidget(self.video_label, alignment=Qt.AlignCenter)
         self.layout.addWidget(self.controls_group)
+
         self.layout.addStretch()
 
+        # Worker Initialization
         self.worker = None
 
+        # Connect Buttons
         self.start_button.clicked.connect(self.start_exercise)
         self.stop_button.clicked.connect(self.stop_exercise)
 
@@ -76,39 +90,46 @@ class ExercisePage(QWidget):
             self.worker.status_signal.connect(self.emit_status_message)
             self.worker.counters_signal.connect(self.emit_counters_update)
             self.worker.user_recognized_signal.connect(self.user_recognized_signal.emit)
-            self.worker.unknown_user_detected.connect(self.handle_unknown_user_detected)
-            self.worker.data_updated.connect(self.handle_data_updated)
-            self.worker.thumbnail_frame_signal.connect(self.handle_thumbnail_frame)
+            self.worker.unknown_user_detected.connect(self.prompt_new_user_name)
+            self.worker_started.connect(self.emit_worker_started)
             self.worker.start()
             self.worker_started.emit()
 
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
+        self.status_message.emit("Exercise monitoring started.")
 
     def stop_exercise(self):
         """Stop exercise monitoring."""
         if self.worker:
+            # Disconnect signals first
             try:
                 self.worker.frame_signal.disconnect(self.update_frame)
                 self.worker.status_signal.disconnect(self.emit_status_message)
                 self.worker.counters_signal.disconnect(self.emit_counters_update)
                 self.worker.user_recognized_signal.disconnect(self.user_recognized_signal.emit)
-                self.worker.unknown_user_detected.disconnect(self.handle_unknown_user_detected)
-                self.worker.data_updated.disconnect(self.handle_data_updated)
-                self.worker.thumbnail_frame_signal.disconnect(self.handle_thumbnail_frame)
-            except TypeError:
-                pass
+                self.worker.unknown_user_detected.disconnect(self.prompt_new_user_name)
+                self.worker.worker_started.disconnect(self.emit_worker_started)
+            except RuntimeError as e:
+                print(f"Error disconnecting signals: {e}")
+
+            # Request the worker to stop and wait for it to finish
             self.worker.request_stop()
             self.worker.wait()
+
             self.worker = None
 
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
+        self.status_message.emit("Exercise monitoring stopped.")
 
         # Clear video display
         blank_pixmap = QPixmap(self.video_label.size())
         blank_pixmap.fill(Qt.black)
         self.video_label.setPixmap(blank_pixmap)
+
+    def emit_worker_started(self):
+        self.status_message.emit("Worker thread started.")
 
     def is_exercise_running(self):
         """Check if the exercise is currently running."""
@@ -140,23 +161,20 @@ class ExercisePage(QWidget):
         self.rep_label.setText(f"Reps: {reps}")
         self.set_label.setText(f"Sets: {sets}")
 
-    @Slot(object)
-    def handle_thumbnail_frame(self, frame):
-        """Optional handling for thumbnails."""
-        pass
-
     @Slot()
-    def handle_unknown_user_detected(self):
-        """
-        Handle when the worker detects a stable unknown user.
-        Emit a signal to main_window to prompt for user name.
-        """
+    def prompt_new_user_name(self):
+        """Emit signal to prompt for new user name."""
         self.unknown_user_detected.emit(self)
 
-    @Slot()
-    def handle_data_updated(self):
-        """Handle the data_updated signal to notify MainWindow for syncing."""
-        self.emit_status_message("Exercise data saved locally.")
+    def handle_new_user_registration(self, username):
+        """Handle the registration of a new user."""
+        # This method can be expanded based on the application's requirements
+        pass
+
+    def closeEvent(self, event):
+        """Ensure worker thread is stopped on closing the page."""
+        self.stop_exercise()
+        event.accept()
 
     def start_user_registration(self, user_name):
         """

@@ -264,3 +264,56 @@ class DatabaseHandler:
                 logging.info("Closed SQLite connection.")
         except sqlite3.Error as e:
             logging.error(f"SQLite error while closing connection: {e}")
+    
+    # Additional Methods Added Below
+
+    def get_total_members(self):
+        """Retrieve the total number of members."""
+        try:
+            with self.lock:
+                self.cursor.execute('SELECT COUNT(*) FROM members')
+                count = self.cursor.fetchone()[0]
+                logging.info(f"Total members: {count}")
+                return count
+        except sqlite3.Error as e:
+            logging.error(f"SQLite error in get_total_members: {e}")
+            return 0
+
+    def get_active_exercises(self):
+        """Retrieve the number of distinct active exercises."""
+        try:
+            with self.lock:
+                # Assuming 'active exercises' refers to distinct exercises recorded
+                self.cursor.execute('SELECT COUNT(DISTINCT exercise) FROM exercise_data')
+                count = self.cursor.fetchone()[0]
+                logging.info(f"Active exercises: {count}")
+                return count
+        except sqlite3.Error as e:
+            logging.error(f"SQLite error in get_active_exercises: {e}")
+            return 0
+        
+    def get_recent_activities(self, limit=5):
+        """Retrieve recent activities from the exercise_data table."""
+        try:
+            with self.lock:
+                self.cursor.execute('''
+                    SELECT members.username, exercise_data.exercise, exercise_data.timestamp
+                    FROM exercise_data
+                    JOIN members ON exercise_data.user_id = members.user_id
+                    ORDER BY exercise_data.timestamp DESC
+                    LIMIT ?
+                ''', (limit,))
+                rows = self.cursor.fetchall()
+                activities = []
+                for row in rows:
+                    activities.append({
+                        "username": row[0],
+                        "exercise": row[1],
+                        "timestamp": row[2]
+                    })
+                logging.info(f"Retrieved {len(activities)} recent activities.")
+                return activities
+        except sqlite3.Error as e:
+            logging.error(f"SQLite error in get_recent_activities: {e}")
+            return []
+
